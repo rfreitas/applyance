@@ -17,74 +17,115 @@ references:
 http://stackoverflow.com/questions/7991607/best-publish-subscribe-library-in-javascript
 */
 
-var findDelegates = function(delegator, function_key, before){
-	//TODO
-};
 
-var delegate = function( delegator, function_key, args, before ){
-	var delegateFuncs = findDelegates(delegator, function_key, before);
-	delegateFuncs.forEach(function(func,index){
-		func.apply( window, args );
-	});
-};
+(function(window, undefined){
 
-var forEachApply = function( delegateFuncs, args){
-	delegateFuncs.orEach(function(func,index){
-		func.apply( window, arguments );
-	});
-};
+	var out =
+	window.applyance = {};
+
+	out.forEachApply = function( delegateFuncs, args, target){
+		delegateFuncs.forEach(function(func,index){
+			func.apply( target, arguments );
+		});
+	};
 
 
-var pubDelegation = function( delegator, function_key){
-	var existingFunc = delegator[function_key];
-	var newFunc = null;
+	out.createDelegator = function(wrappedFunction){
+		var delegator = function(){
+			var meta = delegator.delegatorMeta;
 
-	var delegateFuncsBefore = [];
-	var delegateFuncs = [];
+			out.forEachApply( meta.delegatesBefore , arguments );
+			var result = typeof meta.wrappedFunction === "function" ? meta.wrappedFunction.apply(this, arguments) : undefined;
+			out.forEachApply( meta.delegates , arguments );
 
-	
-	if ( typeof existingFunc === "function" ){
-		newFunc = function(){
-			forEachApply( delegateFuncsBefore, arguments );
-			var out = existingFunc.apply(delegator, arguments);
-			forEachApply( delegateFuncs, arguments );
-			return out;
+			return result;
 		};
-	}
-	else if( typeof existingFunc === "undefined" ) {
-		newFunc = function(){
-			forEachApply( delegateFuncsBefore, arguments );
-			forEachApply( delegateFuncs, arguments );
-		};
-	}
-	else{
+
+		var 	delegatorMeta =
+		delegator.delegatorMeta = {};
+
+		delegatorMeta.delegates = [];
+		delegatorMeta.delegatesBefore = [];
+		delegatorMeta.wrappedFunction = wrappedFunction;
+
+		return delegator;
+	};
+
+
+	out.setUp = function( delegatorObject, function_key, force){
+		var existingFunc = delegatorObject[function_key];
+
+		if (  out.isDelegator( existingFunc ) ){
+			return existingFunc;
+		}
+
+		var newFunc = null;
+
+
+		if ( force || typeof existingFunc === "function" || typeof existingFunc === "undefined" || existingFunc === null){
+			newFunc = out.createDelegator();
+		}
+		else{
 		//error
 		return;
 	}
 
-	newFunc._delegateFuncsBefore = delegateFuncsBefore;
-	newFunc._delegateFuncs = delegateFuncs;
-	newFunc._existingFunc = existingFunc;
 
-	delegator[function_key] = newFunc;
-};
-
-var restoreFunction = function( delegator, function_key){
-	var existingFunc = delegator[function_key]._existingFunc;
-	if(existingFunc){
-		delegator[function_key] = existingFunc;
+	if (typeof existingFunc === "function"){
+		newFunc.delegatorMeta.wrappedFunction = function(){
+			existingFunc.apply(delegatorObject, arguments);
+		};
 	}
+	
+	/* the user chooses what to do
+	if ( Object.freeze ){
+		Object.freeze(delegatorMeta);
+		Object.freeze(newFunc);
+	}
+	*/
+
+	delegatorObject[function_key] = newFunc;
+
+	return newFunc;
 };
 
-var deleteDelegation = function(){
-	//
+
+out.tearDown = function( delegator, function_key ){
+	var func = delegator[function_key];
+	if ( out.isDelegator(func) ){
+		var existingFunc = func.delegatorMeta.wrappedFunction;
+		if(existingFunc){
+			delegator[function_key] = existingFunc;
+		}
+		return true;
+	}
+	return false;
 };
 
-var subDelegation = function( delegator, function_key, handler, target, before ){
+out.isDelegator = function(func){
+	return typeof func === "function" && typeof func.delegatorMeta === "object";
+};
+
+//before and target are both optional
+out.delegate = function( delegator, function_key, handler, before, target  ){
+	//handler prep
 	if (target){
 		handler = function(){
 			return handler.apply(target,arguments);
 		};
 	}
-	//TODO
+	
+	var funcToDelegate = out.setUp( delegator, function_key );
+
+	if ( typeof funcToDelegate !== "function"){
+		console.log("Function to delegate from is not really a function but a "+typeof funcToDelegate);
+		return false;
+	}
+
+	var delegatesArray = before ? funcToDelegate.delegatorMeta.delegatesBefore : funcToDelegate.delegatorMeta.delegates;
+
+	delegatesArray.push( handler );
+	return funcToDelegate;
 };
+
+})(window, undefined);

@@ -1,0 +1,33 @@
+<head>
+	<script src="delegator.js"></script>
+</head>
+
+
+<script type="text/javascript">
+	var obj = {
+		call: function(){
+			console.log("call");
+			console.log(this);
+		},
+		call1:null,
+		call2:1,
+		call3:"2",
+		call4:undefined
+		//call5
+	}
+
+	Object.keys(obj).concat("call5").forEach( function(key){
+		console.log(key);
+		applyance.delegate( obj, key, function(){
+			console.log( "delegated after "+key);
+			console.log(this);
+		} );
+
+		applyance.delegate( obj, key, function(){
+			console.log( "delegated before "+key);
+			console.log(this);
+		}, true );
+	})
+	
+
+</script>
